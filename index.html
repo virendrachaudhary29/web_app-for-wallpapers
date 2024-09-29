@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MKBSD_WEBPAGE</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #imageGallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .image-container {
+            width: 200px;
+        }
+        .image-container img {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>MKBSD </h1>
+    <div id="controls">
+        <button id="startButton">Start Download</button>
+        <button id="stopButton" disabled>Stop Download</button>
+    </div>
+    <div id="imageGallery"></div>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const imageGallery = document.getElementById('imageGallery');
+        let stopDownload = false;
+
+        startButton.addEventListener('click', startDownload);
+        stopButton.addEventListener('click', () => {
+            stopDownload = true;
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        });
+
+        async function startDownload() {
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            imageGallery.innerHTML = '';
+            stopDownload = false;
+
+            try {
+                const response = await fetch('/api/download-wallpapers');
+                const reader = response.body.getReader();
+                
+                while (!stopDownload) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const messages = new TextDecoder().decode(value).split('\n').filter(Boolean);
+                    for (const message of messages) {
+                        if (stopDownload) break;
+                        const data = JSON.parse(message);
+                        if (data.type === 'image') {
+                            await addImageToGallery(data.url);
+                        } else if (data.type === 'complete' || data.type === 'error') {
+                            console.log(data.message);
+                            stopDownload = true;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`Error: ${error.message}`);
+            } finally {
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        }
+
+        function addImageToGallery(imageUrl) {
+            return new Promise((resolve) => {
+                const container = document.createElement('div');
+                container.className = 'image-container';
+                
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = 'Downloaded wallpaper';
+                img.onload = resolve; // Resolve the promise when the image is loaded
+                
+                const link = document.createElement('a');
+                link.href = imageUrl;
+                link.download = '';
+                link.textContent = 'Download';
+                
+                container.appendChild(img);
+                container.appendChild(link);
+                imageGallery.appendChild(container);
+            });
+        }
+    </script>
+</body>
+</html>
